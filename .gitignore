@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+/backend/venv/
+
+# Build outputs
+/frontend/dist/
+
+# Logs and databases
+*.log
+*.sqlite
+/recovered_chats/
+
+# Pycache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+/backend/__pycache__/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs/Editors
+.vscode/
+.idea/

@@ -1,0 +1,20 @@
+holiday_home_scheduler/
+├── backend/
+│   ├── main.py             # FastAPI entry point & API endpoints
+│   ├── models.py           # Pydantic data models (Property, Staff, Task, etc.)
+│   ├── osrm.py             # Distance matrix logic (OSRM integration)
+│   ├── scheduler.py        # OR-Tools AI scheduling logic (Two-Pass system)
+│   ├── requirements.txt    # Python dependencies
+│   ├── venv/               # Virtual environment (dependencies installed here)
+│   └── __pycache__/        # Compiled python files
+│
+└── frontend/
+    ├── src/
+    │   ├── App.jsx         # Main React application (Dashboard, Editable UI, logic)
+    │   ├── index.css       # Premium dynamic design styles & animations
+    │   └── main.jsx        # React DOM rendering entry point
+    ├── index.html          # HTML template
+    ├── package.json        # Node.js dependencies and scripts
+    ├── package-lock.json   # Exact dependency versions
+    ├── vite.config.js      # Vite build configuration
+    └── node_modules/       # Installed Node.js dependencies
