@@ -54,7 +54,8 @@ function isShortMapsUrl(url) {
 /** Call the backend to resolve a short URL */
 async function resolveShortUrl(url) {
   try {
-    const res = await fetch('http://localhost:8000/api/resolve-maps', {
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const res = await fetch(`${apiUrl}/api/resolve-maps`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url }),
