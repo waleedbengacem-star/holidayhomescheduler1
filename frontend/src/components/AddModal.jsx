@@ -78,11 +78,26 @@ function MapsLinkField({ defaultValue = '' }) {
 }
 
 /** Searchable property picker */
-function PropertyPicker({ properties }) {
+export function PropertyPicker({ properties, defaultValue, onChange }) {
+  const allProps = React.useMemo(() => [
+    { id: 'tbd', name: 'TBD (To Be Determined)', latitude: null, longitude: null },
+    ...properties
+  ], [properties]);
+
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
-  const [selected, setSelected] = useState(properties[0] || null);
+  const [selected, setSelected] = useState(() => {
+    if (defaultValue) return allProps.find(p => p.id === defaultValue) || allProps[0];
+    return allProps[0];
+  });
   const wrapRef = useRef();
+
+  useEffect(() => {
+    if (defaultValue !== undefined) {
+      const found = allProps.find(p => p.id === defaultValue);
+      if (found) setSelected(found);
+    }
+  }, [defaultValue, allProps]);
 
   useEffect(() => {
     function onDown(e) { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); }
@@ -90,8 +105,41 @@ function PropertyPicker({ properties }) {
     return () => document.removeEventListener('mousedown', onDown);
   }, []);
 
-  const filtered = properties.filter(p => p.name.toLowerCase().includes(query.toLowerCase()));
+  const filtered = allProps.filter(p => p.name.toLowerCase().includes(query.toLowerCase()));
   const hasLoc = (p) => !!(p.latitude && p.longitude);
+
+  const handleSelect = (p) => {
+    setSelected(p);
+    setOpen(false);
+    setQuery('');
+    if (onChange) onChange(p.id);
+  };
+
+  const renderBadge = (p) => {
+    if (p.id === 'tbd') {
+      return (
+        <span style={{ fontSize: '0.68rem', color: '#60a5fa', background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.25)', borderRadius: 4, padding: '0.05rem 0.3rem' }}>
+          ❓ TBD
+        </span>
+      );
+    }
+    return hasLoc(p)
+      ? <span style={{ fontSize: '0.68rem', color: 'var(--success)', background: 'rgba(45,212,172,0.1)', border: '1px solid rgba(45,212,172,0.25)', borderRadius: 4, padding: '0.05rem 0.3rem' }}>📍</span>
+      : <span style={{ fontSize: '0.68rem', color: 'var(--warning)', opacity: 0.7, borderRadius: 4, padding: '0.05rem 0.3rem' }}>⚠️ no location</span>;
+  };
+
+  const renderListBadge = (p) => {
+    if (p.id === 'tbd') {
+      return (
+        <span style={{ fontSize: '0.68rem', color: '#60a5fa', background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.25)', borderRadius: 4, padding: '0.05rem 0.35rem' }}>
+          ❓ TBD
+        </span>
+      );
+    }
+    return hasLoc(p)
+      ? <span title={`${p.latitude?.toFixed(4)}, ${p.longitude?.toFixed(4)}`} style={{ fontSize: '0.68rem', color: 'var(--success)', background: 'rgba(45,212,172,0.1)', border: '1px solid rgba(45,212,172,0.25)', borderRadius: 4, padding: '0.05rem 0.35rem' }}>📍 Located</span>
+      : <span style={{ fontSize: '0.68rem', color: 'rgba(251,191,36,0.8)', background: 'rgba(251,191,36,0.07)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 4, padding: '0.05rem 0.35rem' }}>⚠️ No location</span>;
+  };
 
   return (
     <div ref={wrapRef} style={{ position: 'relative' }}>
@@ -109,10 +157,7 @@ function PropertyPicker({ properties }) {
           {selected ? (
             <>
               <span>{selected.name}</span>
-              {hasLoc(selected)
-                ? <span style={{ fontSize: '0.68rem', color: 'var(--success)', background: 'rgba(45,212,172,0.1)', border: '1px solid rgba(45,212,172,0.25)', borderRadius: 4, padding: '0.05rem 0.3rem' }}>📍</span>
-                : <span style={{ fontSize: '0.68rem', color: 'var(--warning)', opacity: 0.7, borderRadius: 4, padding: '0.05rem 0.3rem' }}>⚠️ no location</span>
-              }
+              {renderBadge(selected)}
             </>
           ) : <span style={{ opacity: 0.5 }}>Select a property…</span>}
         </span>
@@ -135,10 +180,9 @@ function PropertyPicker({ properties }) {
               <li style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center', opacity: 0.6 }}>No properties match "{query}"</li>
             )}
             {filtered.map(p => {
-              const loc = hasLoc(p);
               const isActive = selected?.id === p.id;
               return (
-                <li key={p.id} onClick={() => { setSelected(p); setOpen(false); setQuery(''); }}
+                <li key={p.id} onClick={() => handleSelect(p)}
                   style={{
                     padding: '0.55rem 1rem', cursor: 'pointer', fontSize: '0.88rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem',
                     background: isActive ? 'rgba(240,59,106,0.12)' : 'transparent', color: isActive ? 'var(--brand-pink)' : 'var(--text-primary)', transition: 'background 0.12s'
@@ -147,10 +191,7 @@ function PropertyPicker({ properties }) {
                   onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}>
                   <span>{p.name}</span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
-                    {loc
-                      ? <span title={`${p.latitude?.toFixed(4)}, ${p.longitude?.toFixed(4)}`} style={{ fontSize: '0.68rem', color: 'var(--success)', background: 'rgba(45,212,172,0.1)', border: '1px solid rgba(45,212,172,0.25)', borderRadius: 4, padding: '0.05rem 0.35rem' }}>📍 Located</span>
-                      : <span style={{ fontSize: '0.68rem', color: 'rgba(251,191,36,0.8)', background: 'rgba(251,191,36,0.07)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 4, padding: '0.05rem 0.35rem' }}>⚠️ No location</span>
-                    }
+                    {renderListBadge(p)}
                     {isActive && <span style={{ fontSize: '0.7rem' }}>✓</span>}
                   </span>
                 </li>
@@ -170,6 +211,7 @@ function PropertyPicker({ properties }) {
 
 export default function AddModal({ type, properties, onSave, onClose }) {
   const durationRef = useRef(null);
+  const [timeTbd, setTimeTbd] = useState(false);
 
   function handleTaskTypeChange(e, propId) {
     if (!durationRef.current) return;
@@ -231,8 +273,9 @@ export default function AddModal({ type, properties, onSave, onClose }) {
         property_id: d.property_id, 
         task_type: d.task_type, 
         duration_mins: parseInt(d.duration_mins), 
-        time_window_start_mins: parseTime(d.time_window_start), 
-        time_window_end_mins: parseTime(d.time_window_end), 
+        time_window_start_mins: timeTbd ? 480 : parseTime(d.time_window_start), 
+        time_window_end_mins: timeTbd ? 1140 : parseTime(d.time_window_end), 
+        time_tbd: timeTbd,
         required_roles: roles, 
         priority: parseInt(d.priority),
         cash_collection: d.cash_collection || '',
@@ -298,7 +341,7 @@ export default function AddModal({ type, properties, onSave, onClose }) {
             <>
               <div className="form-group">
                 <label>Property</label>
-                <PropertyPicker properties={properties} />
+                <PropertyPicker properties={properties} defaultValue={properties[0]?.id} />
               </div>
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <div className="form-group" style={{ flex: 1 }}>
@@ -359,7 +402,7 @@ export default function AddModal({ type, properties, onSave, onClose }) {
             <>
               <div className="form-group">
                 <label>Property</label>
-                <PropertyPicker properties={properties} />
+                <PropertyPicker properties={properties} defaultValue="tbd" />
               </div>
               <div className="form-group">
                 <label>Task Type</label>
@@ -402,14 +445,20 @@ export default function AddModal({ type, properties, onSave, onClose }) {
                   <input name="duration_mins" type="number" className="form-control" defaultValue="60" ref={durationRef} required />
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: '1rem' }}>
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
                 <div className="form-group" style={{ flex: 1 }}>
                   <label>Window Start</label>
-                  <input name="time_window_start" type="time" className="form-control" defaultValue="09:00" required />
+                  <input name="time_window_start" type="time" className="form-control" defaultValue="09:00" required={!timeTbd} disabled={timeTbd} />
                 </div>
                 <div className="form-group" style={{ flex: 1 }}>
                   <label>Window End</label>
-                  <input name="time_window_end" type="time" className="form-control" defaultValue="17:00" required />
+                  <input name="time_window_end" type="time" className="form-control" defaultValue="17:00" required={!timeTbd} disabled={timeTbd} />
+                </div>
+                <div className="form-group" style={{ flex: 1, paddingBottom: '0.45rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none' }}>
+                    <input type="checkbox" checked={timeTbd} onChange={e => setTimeTbd(e.target.checked)} />
+                    <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Time is TBD</span>
+                  </label>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '1rem' }}>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Edit2, X, Plus, Trash2, Search, RotateCcw, CheckSquare, ChevronUp, ChevronDown } from 'lucide-react';
 import StaffCalendar from './components/StaffCalendar';
-import AddModal from './components/AddModal';
+import AddModal, { PropertyPicker } from './components/AddModal';
 import PropertyItineraryModal from './components/PropertyItineraryModal';
 import WhatsAppImportModal from './components/WhatsAppImportModal';
 import ExcelImport from './components/ExcelImport';
@@ -80,6 +80,13 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
+  const [editTimeTbd, setEditTimeTbd] = useState(false);
+
+  React.useEffect(() => {
+    if (editingItem?.type === 'task') {
+      setEditTimeTbd(!!editingItem.data.time_tbd);
+    }
+  }, [editingItem]);
   const [addModal, setAddModal] = useState(null); // 'property' | 'staff' | 'task'
   const [showExcel, setShowExcel] = useState(false);
   const getLocalDateStr = (d) => {
@@ -212,6 +219,10 @@ function App() {
 
   /** Estimate one-way drive time in minutes, mirroring the backend logistics engine */
   function travelMins(lat1, lon1, lat2, lon2) {
+    if (lat1 === null || lat1 === undefined || lon1 === null || lon1 === undefined ||
+        lat2 === null || lat2 === undefined || lon2 === null || lon2 === undefined) {
+      return 0;
+    }
     // Base distance at 25 km/h
     const baseMins = (haversineM(lat1, lon1, lat2, lon2) / 1000 / 25) * 60;
     // Apply 1.5x traffic baseline + 20 minute parking/security buffer
@@ -317,7 +328,9 @@ function App() {
 
               if (!prevTask) {
                 // First task: from HQ
-                if (hqReady && prop?.latitude && prop?.longitude) {
+                if (assigned.property_id === 'tbd') {
+                  travelTime = 0;
+                } else if (hqReady && prop?.latitude && prop?.longitude) {
                   travelTime = travelMins(hq.latitude, hq.longitude, prop.latitude, prop.longitude);
                 }
                 actualStart = assigned.start_time_mins - travelTime;
@@ -330,7 +343,9 @@ function App() {
                   taskName = 'In Bldg';
                   actualStart = prevTask.end_time_mins;
                 } else {
-                  if (prevProp?.latitude && prop?.latitude) {
+                  if (assigned.property_id === 'tbd' || prevTask.property_id === 'tbd') {
+                    travelTime = 0;
+                  } else if (prevProp?.latitude && prop?.latitude) {
                     travelTime = travelMins(prevProp.latitude, prevProp.longitude, prop.latitude, prop.longitude);
                   }
                   actualStart = prevTask.end_time_mins;
@@ -397,7 +412,9 @@ function App() {
             const cleanerName = staff.find(s => s.id === cleanerRow.staff_id)?.name ?? 'Staff';
 
             let travelTime = 20;
-            if (hqReady && prop?.latitude && prop?.longitude) {
+            if (prevTask.property_id === 'tbd') {
+              travelTime = 0;
+            } else if (hqReady && prop?.latitude && prop?.longitude) {
               travelTime = travelMins(prop.latitude, prop.longitude, hq.latitude, hq.longitude);
             }
 
@@ -499,9 +516,11 @@ function App() {
 
         const candidates = eligible.map(row => {
           const s = staff.find(x => x.id === row.staff_id);
-          const start = Math.max(row.cursor, task.time_window_start_mins);
+          const windowStart = task.time_tbd ? s.start_time_mins : task.time_window_start_mins;
+          const windowEnd = task.time_tbd ? s.end_time_mins : task.time_window_end_mins;
+          const start = Math.max(row.cursor, windowStart);
           const end = start + durationPerCleaner;
-          const fits = end <= Math.min(task.time_window_end_mins, s.end_time_mins, checkinDeadline);
+          const fits = end <= Math.min(windowEnd, s.end_time_mins, checkinDeadline);
           return { row, start, end, fits };
         }).filter(c => c.fits);
 
@@ -514,7 +533,8 @@ function App() {
 
           const allFit = selected.every(c => {
              const s = staff.find(x => x.id === c.row.staff_id);
-             return teamEnd <= Math.min(task.time_window_end_mins, s.end_time_mins, checkinDeadline);
+             const windowEnd = task.time_tbd ? s.end_time_mins : task.time_window_end_mins;
+             return teamEnd <= Math.min(windowEnd, s.end_time_mins, checkinDeadline);
           });
 
           if (allFit) {
@@ -526,7 +546,8 @@ function App() {
                    start_time_mins: teamStart,
                    end_time_mins: teamEnd,
                    checkin_deadline: checkinDeadline !== Infinity ? checkinDeadline : null,
-                   team_size: numStaff > 1 ? numStaff : undefined
+                   team_size: numStaff > 1 ? numStaff : undefined,
+                   time_tbd: !!task.time_tbd
                 });
                 c.row.cursor = teamEnd + 15;
              });
@@ -751,12 +772,19 @@ function App() {
       }
     } else if (editingItem.type === 'task') {
       setTasks(tasks.map(t => t.id === editingItem.data.id ? {
-        ...t, task_type: data.task_type, priority: parseInt(data.priority),
+        ...t,
+        property_id: data.property_id,
+        task_type: data.task_type,
+        priority: parseInt(data.priority),
         duration_mins: parseInt(data.duration_mins),
-        time_window_start_mins: parseTime(data.time_window_start),
-        time_window_end_mins: parseTime(data.time_window_end),
+        time_window_start_mins: editTimeTbd ? 480 : parseTime(data.time_window_start),
+        time_window_end_mins: editTimeTbd ? 1140 : parseTime(data.time_window_end),
+        time_tbd: editTimeTbd,
         required_roles: rolesForTaskType(data.task_type),
-        target_day: data.target_day || null
+        target_day: data.target_day || null,
+        cash_collection: data.cash_collection || '',
+        notes: data.notes || '',
+        inspection_staff: data.inspection_staff || ''
       } : t));
     } else if (editingItem.type === 'schedule') {
       const { staff_id, start_time, end_time } = data;
@@ -844,7 +872,7 @@ function App() {
                             />
                           </td>
                           <td style={{ padding: '0.5rem', fontWeight: 600 }}>{formatTime(task.start_time_mins)} - {formatTime(task.end_time_mins)}</td>
-                          <td style={{ padding: '0.5rem', fontWeight: 600 }}>{prop?.name || 'Unknown'}</td>
+                          <td style={{ padding: '0.5rem', fontWeight: 600 }}>{task.property_id === 'tbd' ? 'TBD' : (prop?.name || 'Unknown')}</td>
                           <td style={{ padding: '0.5rem' }}>{taskName}</td>
                           <td style={{ padding: '0.5rem' }}>{prop?.access_method || '-'}</td>
                           {ss.roles?.includes('PA') && <td style={{ padding: '0.5rem', background: 'rgba(240,59,106,0.1)', color: '#FF7FA5', fontWeight: 600 }}>{cin?.meet_and_greet || '-'}</td>}
@@ -899,7 +927,10 @@ function App() {
     });
     checkins.filter(c => c.day === dayKey).forEach(c => propsWithActivity.add(c.property_id));
 
-    const sortedProps = Array.from(propsWithActivity).map(pid => properties.find(p => p.id === pid)).filter(Boolean);
+    const sortedProps = Array.from(propsWithActivity).map(pid => {
+      if (pid === 'tbd') return { id: 'tbd', name: 'TBD Property', access_method: '-', guest_checkin_time_mins: null };
+      return properties.find(p => p.id === pid);
+    }).filter(Boolean);
     sortedProps.sort((a, b) => a.name.localeCompare(b.name));
 
     return (
@@ -1092,7 +1123,9 @@ function App() {
                         } : {}),
                       }}>
                       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.25rem' }}>
-                        <strong style={{ fontSize: '0.75rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block', textDecoration: isCompleted ? 'line-through' : 'none' }}>{prop?.name}</strong>
+                        <strong style={{ fontSize: '0.75rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block', textDecoration: isCompleted ? 'line-through' : 'none' }}>
+                          {task.property_id === 'tbd' ? '❓ TBD' : (prop?.name || 'Unknown')}
+                        </strong>
                         <input 
                           type="checkbox" 
                           checked={isCompleted} 
@@ -1103,8 +1136,13 @@ function App() {
                       </div>
                       <span className="time-label" style={{ display: 'flex', flexDirection: 'column', marginTop: 'auto', textDecoration: isCompleted ? 'line-through' : 'none' }}>
                         <span style={{ fontSize: '0.65rem' }}>{formatTime(task.start_time_mins)}–{formatTime(task.end_time_mins)}</span>
-                        <span style={{ fontSize: '0.65rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {isAuto ? `🚗 Drop-off → ${task.for_cleaner}` : task.task_type}
+                        <span style={{ fontSize: '0.65rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                          {isAuto ? `🚗 Drop-off → ${task.for_cleaner}` : (
+                            <>
+                              {task.task_type}
+                              {task.time_tbd && <span style={{ fontSize: '0.58rem', color: '#60a5fa', background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.25)', borderRadius: 2, padding: '0px 2px' }}>🕒 TBD</span>}
+                            </>
+                          )}
                         </span>
                       </span>
                     </div>
@@ -1587,22 +1625,31 @@ function App() {
             />
           </div>
           <ul className="data-list scrollable-list">
-            {tasks
-              .filter(t => {
+            {(() => {
+              const filteredTasks = tasks.filter(t => {
                 const prop = properties.find(p => p.id === t.property_id);
                 const q = taskSearch.toLowerCase();
+                const matchesTbd = q === 'tbd' && (t.property_id === 'tbd' || t.time_tbd);
                 return (prop?.name ?? '').toLowerCase().includes(q) ||
                   t.task_type.toLowerCase().includes(q) ||
-                  getPriorityLabel(t.priority).toLowerCase().includes(q);
-              })
-              .map(t => {
+                  getPriorityLabel(t.priority).toLowerCase().includes(q) ||
+                  matchesTbd;
+              });
+              if (filteredTasks.length === 0) {
+                return <li className="data-item no-results">No matching tasks</li>;
+              }
+              return filteredTasks.map(t => {
                 const prop = properties.find(p => p.id === t.property_id);
                 return (
                   <li key={t.id} className={`data-item${selTasks.has(t.id) ? ' selected' : ''}`}>
                     <input type="checkbox" className="bulk-check" checked={selTasks.has(t.id)} onChange={() => toggleSel(selTasks, setSelTasks, t.id)} style={{ marginTop: 3 }} />
                     <div style={{ flex: 1 }}>
                       <div className="item-header">
-                        <span style={{ fontWeight: 500 }}>{prop?.name ?? '(unknown)'}</span>
+                        <span style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          {t.property_id === 'tbd' ? (
+                            <span style={{ color: '#60a5fa', background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.25)', borderRadius: 4, padding: '0.05rem 0.3rem', fontSize: '0.78rem' }}>❓ TBD Property</span>
+                          ) : (prop?.name ?? '(unknown)')}
+                        </span>
                         <div style={{ display: 'flex', gap: '0.25rem' }}>
                           <button className="edit-btn" onClick={() => setEditingItem({ type: 'task', data: t })}><Edit2 size={15} /></button>
                           <button className="edit-btn danger" onClick={() => handleDelete('task', t.id)}><Trash2 size={15} /></button>
@@ -1610,7 +1657,11 @@ function App() {
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.25rem', alignItems: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <span className="time-label">{formatTime(t.time_window_start_mins)} – {formatTime(t.time_window_end_mins)} ({t.duration_mins}m)</span>
+                          {t.time_tbd ? (
+                            <span className="time-label" style={{ color: '#60a5fa', background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.25)', borderRadius: 4, padding: '0.05rem 0.3rem', fontSize: '0.78rem' }}>🕒 TBD Time</span>
+                          ) : (
+                            <span className="time-label">{formatTime(t.time_window_start_mins)} – {formatTime(t.time_window_end_mins)} ({t.duration_mins}m)</span>
+                          )}
                         </div>
                         <span className={`badge ${t.task_type.toLowerCase().replace(' ', '-')}`}>{t.task_type}</span>
                       </div>
@@ -1622,13 +1673,8 @@ function App() {
                     </div>
                   </li>
                 );
-              })}
-            {tasks.filter(t => {
-              const prop = properties.find(p => p.id === t.property_id);
-              const q = taskSearch.toLowerCase();
-              return (prop?.name ?? '').toLowerCase().includes(q) || t.task_type.toLowerCase().includes(q) || getPriorityLabel(t.priority).toLowerCase().includes(q);
-            }).length === 0 &&
-              <li className="data-item no-results">No matching tasks</li>}
+              });
+            })()}
           </ul>
           </>
           )}
@@ -1813,7 +1859,7 @@ function App() {
                   return (
                     <li key={t.id || t.task_id} style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
                       <span style={{ color: 'var(--danger)' }}>●</span>
-                      <span><strong style={{ color: 'var(--text-primary)' }}>{prop?.name ?? '(unknown)'}</strong> — {t.task_type} ({t.duration_mins}m)</span>
+                      <span><strong style={{ color: 'var(--text-primary)' }}>{t.property_id === 'tbd' ? 'TBD Property' : (prop?.name ?? '(unknown)')}</strong> — {t.task_type} ({t.duration_mins}m)</span>
                       <span style={{ marginLeft: 'auto', fontSize: '0.75rem' }}>{getPriorityLabel(t.priority)}</span>
                     </li>
                   );
@@ -2071,16 +2117,26 @@ function App() {
               )}
               {editingItem.type === 'task' && (
                 <>
+                  <div className="form-group">
+                    <label>Property</label>
+                    <PropertyPicker properties={properties} defaultValue={editingItem.data.property_id} />
+                  </div>
                   <div className="form-group"><label>Task Type</label>
                     <select name="task_type" className="form-control" defaultValue={editingItem.data.task_type}>
                       <option value="Checkout Cleaning">Checkout Cleaning</option>
                       <option value="Check-in Cleaning">Check-in Cleaning</option>
                       <option value="Deep Cleaning">Deep Cleaning</option>
                       <option value="Mid-stay Cleaning">Mid-stay Cleaning</option>
+                      <option value="Linen Change">Linen Change</option>
+                      <option value="Touch Up">Touch Up</option>
                       <option value="Check-in">Check-in</option>
                       <option value="Inspection">Inspection</option>
                       <option value="Cash Collection">Cash Collection</option>
+                      <option value="Pay Collect">Pay Collect</option>
+                      <option value="Viewings">Viewings</option>
+                      <option value="Picture / Measurement">Picture / Measurement</option>
                       <option value="Drop-off / Pick-up">Drop-off / Pick-up</option>
+                      <option value="Maintenance">Maintenance</option>
                     </select>
                   </div>
                   <div style={{ display: 'flex', gap: '1rem' }}>
@@ -2102,20 +2158,40 @@ function App() {
                       <input type="number" name="duration_mins" className="form-control" defaultValue={editingItem.data.duration_mins} required />
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '1rem' }}>
+                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
                     <div className="form-group" style={{ flex: 1 }}><label>Window Start</label>
-                      <input type="time" name="time_window_start" className="form-control" defaultValue={toTimeStr(editingItem.data.time_window_start_mins)} required />
+                      <input type="time" name="time_window_start" className="form-control" defaultValue={editingItem.data.time_window_start_mins !== undefined ? toTimeStr(editingItem.data.time_window_start_mins) : '09:00'} required={!editTimeTbd} disabled={editTimeTbd} />
                     </div>
                     <div className="form-group" style={{ flex: 1 }}><label>Window End</label>
-                      <input type="time" name="time_window_end" className="form-control" defaultValue={toTimeStr(editingItem.data.time_window_end_mins)} required />
+                      <input type="time" name="time_window_end" className="form-control" defaultValue={editingItem.data.time_window_end_mins !== undefined ? toTimeStr(editingItem.data.time_window_end_mins) : '17:00'} required={!editTimeTbd} disabled={editTimeTbd} />
                     </div>
+                    <div className="form-group" style={{ flex: 1, paddingBottom: '0.45rem' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none' }}>
+                        <input type="checkbox" checked={editTimeTbd} onChange={e => setEditTimeTbd(e.target.checked)} />
+                        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Time is TBD</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '1rem' }}>
+                    <div className="form-group" style={{ flex: 1 }}>
+                      <label>Cash Collection</label>
+                      <input name="cash_collection" className="form-control" defaultValue={editingItem.data.cash_collection || ''} placeholder="e.g. Collect 8,500" />
+                    </div>
+                    <div className="form-group" style={{ flex: 1 }}>
+                      <label>Notes</label>
+                      <input name="notes" className="form-control" defaultValue={editingItem.data.notes || ''} placeholder="e.g. Bring extra towels" />
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label>Inspection Staff</label>
+                    <input name="inspection_staff" className="form-control" defaultValue={editingItem.data.inspection_staff || ''} placeholder="e.g. Ranjith" />
                   </div>
                 </>
               )}
               {editingItem.type === 'schedule' && (
                 <>
                   <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
-                    Override assignment for <strong>{properties.find(p => p.id === editingItem.data.property_id)?.name} ({editingItem.data.task_type})</strong>.
+                    Override assignment for <strong>{editingItem.data.property_id === 'tbd' ? 'TBD Property' : (properties.find(p => p.id === editingItem.data.property_id)?.name || 'Unknown')} ({editingItem.data.task_type})</strong>.
                   </p>
                   <div className="form-group"><label>Assign To</label>
                     <select name="staff_id" className="form-control" defaultValue={editingItem.data.current_staff_id}>
