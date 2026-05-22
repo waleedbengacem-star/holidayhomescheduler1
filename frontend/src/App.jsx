@@ -1554,6 +1554,8 @@ function App() {
           schedule={schedule}
           completedTasks={completedTasks}
           properties={properties}
+          offDaysRaw={offDaysRaw}
+          setOffDaysRaw={setOffDaysRaw}
         />
       )}
 
@@ -2110,9 +2112,6 @@ function App() {
           )}
         </div>
       </div>
-
-      {/* Staff Off-Days Calendar */}
-      <StaffCalendar staff={staff} offDaysRaw={offDaysRaw} setOffDaysRaw={setOffDaysRaw} setStaff={setStaff} />
 
       <button className="action-btn" onClick={generateSchedule} disabled={loading} style={{ marginTop: '2rem' }}>
         {loading ? '⏳ Optimizing Schedule...' : '⚡ Generate Multi-Day Schedule'}

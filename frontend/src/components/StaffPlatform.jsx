@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { Edit2, Check, X, Car, User, BarChart2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Edit2, Check, X, Car, User, BarChart2, CalendarDays } from 'lucide-react';
+import StaffCalendar from './StaffCalendar';
 
 function getInitials(name) {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
@@ -15,9 +16,9 @@ function getRoleColor(roles) {
 }
 
 const ROLE_OPTIONS = ['PA', 'Cleaner', 'Handyman', 'Driver', 'Supervisor', 'Inspector'];
-const TABS = ['Profiles', 'Statistics'];
+const TABS = ['Profiles', 'Statistics', 'Off Days'];
 
-export default function StaffPlatform({ staff, setStaff, schedule, completedTasks, properties }) {
+export default function StaffPlatform({ staff, setStaff, schedule, completedTasks, properties, offDaysRaw, setOffDaysRaw }) {
   const [activeTab, setActiveTab] = useState('Profiles');
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState({});
@@ -96,6 +97,7 @@ export default function StaffPlatform({ staff, setStaff, schedule, completedTask
               key={tab}
               onClick={() => setActiveTab(tab)}
               style={{
+                display: 'flex', alignItems: 'center', gap: '0.35rem',
                 padding: '0.4rem 1rem', borderRadius: 8, border: 'none', cursor: 'pointer',
                 background: activeTab === tab ? 'linear-gradient(135deg, rgba(240,59,106,0.25), rgba(167,139,250,0.2))' : 'transparent',
                 boxShadow: activeTab === tab ? 'inset 0 0 0 1px rgba(240,59,106,0.35)' : 'none',
@@ -104,7 +106,9 @@ export default function StaffPlatform({ staff, setStaff, schedule, completedTask
                 transition: 'all 0.18s',
               }}
             >
-              {tab === 'Profiles' ? <><User size={13} style={{ marginRight: 5, verticalAlign: 'middle' }} />Profiles</> : <><BarChart2 size={13} style={{ marginRight: 5, verticalAlign: 'middle' }} />Statistics</>}
+              {tab === 'Profiles'   && <><User         size={13} />Profiles</>}
+              {tab === 'Statistics' && <><BarChart2    size={13} />Statistics</>}
+              {tab === 'Off Days'   && <><CalendarDays size={13} />Off Days</>}
             </button>
           ))}
         </div>
@@ -351,6 +355,16 @@ export default function StaffPlatform({ staff, setStaff, schedule, completedTask
           )}
         </div>
       )}
+      {/* ══ OFF DAYS TAB ══ */}
+      {activeTab === 'Off Days' && (
+        <StaffCalendar
+          staff={staff}
+          offDaysRaw={offDaysRaw || {}}
+          setOffDaysRaw={setOffDaysRaw || (() => {})}
+          setStaff={setStaff}
+        />
+      )}
+
     </div>
   );
 }
