@@ -1562,7 +1562,16 @@ function App() {
         {/* Properties Card */}
         <div className="glass-card">
           <div className="card-header">
-            <h2>🏠 Properties ({properties.length})</h2>
+            <h2
+              onClick={() => setActivePlatform('properties')}
+              title="Open Property Info grid"
+              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', transition: 'opacity 0.15s' }}
+              onMouseEnter={e => e.currentTarget.style.opacity = '0.75'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+            >
+              🏠 Properties ({properties.length})
+              <span style={{ fontSize: '0.75rem', opacity: 0.4, fontWeight: 400 }}>↗</span>
+            </h2>
             <div className="header-actions">
               {selProps.size > 0 && (
                 <button className="icon-btn danger" title={`Delete ${selProps.size} selected`} onClick={() => handleBulkDelete('property')}>
