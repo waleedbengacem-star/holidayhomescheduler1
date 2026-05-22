@@ -1765,9 +1765,6 @@ function App() {
               <button className="icon-btn danger-soft" title="Delete All Tasks" onClick={() => handleDeleteAll('task')}>
                 <Trash2 size={14} /><span style={{ fontSize: '0.72rem', marginLeft: 3 }}>All</span>
               </button>
-              <button className="icon-btn" title="Settings" onClick={() => setAddModal('settings')}>
-                ⚙️
-              </button>
               <button className="icon-btn" style={{ background: '#25D366', color: 'white' }} title="WhatsApp Import" onClick={() => setAddModal('whatsapp')}>
                 💬 <span style={{ fontSize: '0.75rem', marginLeft: 3, paddingRight: 4, fontWeight: 600 }}>WhatsApp</span>
               </button>
