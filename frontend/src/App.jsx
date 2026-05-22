@@ -117,6 +117,8 @@ function App() {
 
   const [feedbackText, setFeedbackText] = useState('');
   const [isLearning, setIsLearning] = useState(false);
+  const [aiError, setAiError] = useState(null);
+  const [aiSuccess, setAiSuccess] = useState(null);
 
   const toggleTaskCompletion = (taskId) => {
     setCompletedTasks(prev => 
@@ -124,43 +126,76 @@ function App() {
     );
   };
 
-  const handleTeachAI = () => {
+  const handleTeachAI = async () => {
     if (!feedbackText.trim()) return;
     setIsLearning(true);
-    
-    // Simulate LLM delay
-    setTimeout(() => {
-      const text = feedbackText.toLowerCase();
-      let extractedConstraints = [];
+    setAiError(null);
+    setAiSuccess(null);
 
-      // A simple regex/keyword matcher to prove the concept
-      staff.forEach(s => {
-        const sName = s.name.toLowerCase();
-        if (text.includes(sName)) {
-          if (text.includes('never') || text.includes('don\'t') || text.includes('not') || text.includes('avoid')) {
-            // Find what they shouldn't do
-            const tasksTypes = ['check-in', 'deep cleaning', 'touch up', 'mid-stay', 'cash collection'];
-            tasksTypes.forEach(tt => {
-              if (text.includes(tt.replace('-', '')) || text.includes(tt)) {
-                extractedConstraints.push({ type: 'disallow_task', staff_id: s.id, staff_name: s.name, task_type: tt });
-              }
-            });
-          }
-        }
+    const taskTypes = [
+      'Checkout Cleaning', 'Check-in Cleaning', 'Deep Cleaning', 'Mid-stay Cleaning',
+      'Linen Change', 'Touch Up', 'Check-in', 'Inspection', 'Cash Collection',
+      'Pay Collect', 'Viewings', 'Drop-off / Pick-up', 'Maintenance', 'Picture / Measurement'
+    ];
+
+    try {
+      // Call our secure Netlify serverless function (works in production)
+      // Falls back gracefully when running locally without the function
+      const endpoint = '/.netlify/functions/claude-ai';
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          feedbackText,
+          staffList: staff.map(s => ({ id: s.id, name: s.name, roles: s.roles })),
+          taskTypes,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(err.error || `Server returned ${res.status}`);
+      }
+
+      const data = await res.json();
+
+      // Match staff IDs from names Claude returned (it may only know names, not IDs)
+      const resolvedConstraints = (data.constraints || []).map(c => {
+        const matchedStaff = staff.find(
+          s => s.name.toLowerCase() === (c.staff_name || '').toLowerCase()
+        );
+        return {
+          ...c,
+          staff_id: matchedStaff?.id || c.staff_id || null,
+          staff_name: matchedStaff?.name || c.staff_name || 'Unknown',
+        };
       });
 
       setExpertRules(prev => [
         {
           id: 'rule_' + Date.now(),
           raw_text: feedbackText,
+          summary: data.summary || '',
           timestamp: new Date().toISOString(),
-          constraints: extractedConstraints
+          constraints: resolvedConstraints,
         },
         ...prev
       ]);
+      setAiSuccess(data.summary || 'Rule saved successfully.');
       setFeedbackText('');
+    } catch (err) {
+      console.error('Claude AI error:', err);
+      setAiError(
+        err.message.includes('CLAUDE_API_KEY')
+          ? '⚠️ API key not configured. Go to Netlify → Site Settings → Environment Variables and add CLAUDE_API_KEY.'
+          : err.message.includes('Failed to fetch') || err.message.includes('NetworkError')
+            ? '⚠️ Claude AI is only available on the deployed Netlify site. Running locally? Deploy first, then set CLAUDE_API_KEY in Netlify.'
+            : `❌ Error: ${err.message}`
+      );
+    } finally {
       setIsLearning(false);
-    }, 1500);
+    }
   };
 
   const handleRemoveRule = (ruleId) => {
@@ -1280,30 +1315,54 @@ function App() {
                 </button>
               </div>
               
+              {/* AI feedback / error messages */}
+              {aiError && (
+                <div style={{ padding: '0.75rem 1rem', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, fontSize: '0.82rem', color: '#f87171', lineHeight: 1.5 }}>
+                  {aiError}
+                </div>
+              )}
+              {aiSuccess && (
+                <div style={{ padding: '0.75rem 1rem', background: 'rgba(45,212,172,0.1)', border: '1px solid rgba(45,212,172,0.3)', borderRadius: 8, fontSize: '0.82rem', color: 'var(--success)', lineHeight: 1.5 }}>
+                  ✅ <strong>Claude understood:</strong> {aiSuccess}
+                </div>
+              )}
+
               {expertRules.length > 0 && (
                 <div>
-                  <h3 style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>AI Rulebook (Active Rules)</h3>
+                  <h3 style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>🧠 AI Rulebook (Active Rules)</h3>
                   <ul className="data-list">
                     {expertRules.map(rule => (
                       <li key={rule.id} className="data-item" style={{ flexDirection: 'column', alignItems: 'flex-start', padding: '0.75rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
-                          <span style={{ fontStyle: 'italic', color: 'var(--text-primary)', fontSize: '0.85rem' }}>"{rule.raw_text}"</span>
-                          <button className="icon-btn danger-soft" style={{ padding: '4px' }} onClick={() => handleRemoveRule(rule.id)} title="Remove rule"><Trash2 size={14} /></button>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'flex-start', gap: '0.5rem' }}>
+                          <div style={{ flex: 1 }}>
+                            {rule.summary && (
+                              <div style={{ fontSize: '0.82rem', color: 'var(--success)', marginBottom: '0.25rem', fontWeight: 500 }}>
+                                ✅ {rule.summary}
+                              </div>
+                            )}
+                            <div style={{ fontStyle: 'italic', color: 'var(--text-secondary)', fontSize: '0.78rem' }}>
+                              "{rule.raw_text}"
+                            </div>
+                          </div>
+                          <button className="icon-btn danger-soft" style={{ padding: '4px', flexShrink: 0 }} onClick={() => handleRemoveRule(rule.id)} title="Remove rule"><Trash2 size={14} /></button>
                         </div>
                         {rule.constraints && rule.constraints.length > 0 && (
                           <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                             {rule.constraints.map((c, i) => (
                               <span key={i} style={{ fontSize: '0.7rem', background: 'rgba(167,139,250,0.15)', color: '#a78bfa', padding: '0.2rem 0.5rem', borderRadius: 4, border: '1px solid rgba(167,139,250,0.3)' }}>
-                                {c.type === 'disallow_task' ? `🚫 Disallow: ${c.staff_name} -> ${c.task_type}` : JSON.stringify(c)}
+                                {c.type === 'disallow_task' ? `🚫 ${c.staff_name} → No ${c.task_type}` : JSON.stringify(c)}
                               </span>
                             ))}
                           </div>
                         )}
                         {(!rule.constraints || rule.constraints.length === 0) && (
-                          <div style={{ marginTop: '0.5rem', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                            <span style={{ color: 'var(--warning)' }}>⚠️ No strict constraints extracted (Simulated LLM only caught general feedback)</span>
+                          <div style={{ marginTop: '0.4rem', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                            <span style={{ opacity: 0.7 }}>ℹ️ General feedback — no strict scheduling constraint extracted.</span>
                           </div>
                         )}
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.35rem', opacity: 0.6 }}>
+                          {new Date(rule.timestamp).toLocaleString()}
+                        </div>
                       </li>
                     ))}
                   </ul>
