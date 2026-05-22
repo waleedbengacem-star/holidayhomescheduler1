@@ -119,13 +119,38 @@ export default function BookingManager({ bookings, setBookings, properties }) {
   const prevMonth = () => setViewMonth(v => v.month === 0 ? { year: v.year - 1, month: 11 } : { ...v, month: v.month - 1 });
   const nextMonth = () => setViewMonth(v => v.month === 11 ? { year: v.year + 1, month: 0 } : { ...v, month: v.month + 1 });
 
-  // ── Auto-task preview for a booking ──────────────────────────────────────
+  // ── Smart auto-task preview (mirrors App.jsx bookingTasks logic) ────────────
   const getAutoTasks = (bk) => {
     if (!bk.check_in_date || !bk.check_out_date) return [];
     const tasks = [];
-    if (bk.check_out_date) tasks.push({ label: 'Checkout Cleaning', date: bk.check_out_date, time: bk.check_out_time, color: '#a78bfa' });
-    if (bk.check_in_date)  tasks.push({ label: 'Check-in Cleaning', date: bk.check_in_date, time: '10:00', color: '#60a5fa' });
-    if (bk.check_in_date)  tasks.push({ label: 'Check-in / Meet & Greet', date: bk.check_in_date, time: bk.check_in_time, color: '#2dd4af' });
+
+    // Checkout Cleaning always
+    tasks.push({ label: 'Checkout Cleaning', date: bk.check_out_date, time: bk.check_out_time, color: '#a78bfa', icon: '🧹' });
+
+    // Find most recent same-property checkout before this check-in
+    const prevCheckout = bookings
+      .filter(other =>
+        other.id !== bk.id &&
+        other.property_id === bk.property_id &&
+        other.status !== 'cancelled' &&
+        other.check_out_date &&
+        other.check_out_date <= bk.check_in_date
+      )
+      .sort((a, b) => b.check_out_date.localeCompare(a.check_out_date))[0];
+
+    const days = prevCheckout
+      ? Math.round((new Date(bk.check_in_date) - new Date(prevCheckout.check_out_date)) / 86400000)
+      : null;
+
+    if (days === 0) {
+      tasks.push({ label: 'No check-in cleaning (same-day checkout covers it)', date: bk.check_in_date, time: '—', color: 'var(--text-secondary)', icon: '✅', dim: true });
+    } else if (days !== null && days <= 7) {
+      tasks.push({ label: `Touch Up only (prev checkout ${days}d ago)`, date: bk.check_in_date, time: '10:00', color: '#fbbf24', icon: '🧽' });
+    } else {
+      tasks.push({ label: 'Check-in Cleaning', date: bk.check_in_date, time: '10:00', color: '#60a5fa', icon: '🛏️' });
+    }
+
+    tasks.push({ label: 'Check-in / Meet & Greet', date: bk.check_in_date, time: bk.check_in_time, color: '#2dd4af', icon: '✈️' });
     return tasks;
   };
 
@@ -233,8 +258,8 @@ export default function BookingManager({ bookings, setBookings, properties }) {
                   <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.35rem' }}>Auto-scheduled tasks</div>
                   <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                     {autoTasks.map((t, i) => (
-                      <span key={i} style={{ fontSize: '0.72rem', padding: '0.2rem 0.6rem', borderRadius: 6, background: `${t.color}18`, border: `1px solid ${t.color}40`, color: t.color, fontWeight: 600 }}>
-                        {t.label} · {formatDate(t.date)}
+                      <span key={i} style={{ fontSize: '0.72rem', padding: '0.2rem 0.6rem', borderRadius: 6, background: `${t.color}18`, border: `1px solid ${t.color}40`, color: t.dim ? 'var(--text-secondary)' : t.color, fontWeight: 600, opacity: t.dim ? 0.7 : 1 }}>
+                        {t.icon} {t.label} · {formatDate(t.date)}
                       </span>
                     ))}
                   </div>
@@ -364,21 +389,20 @@ export default function BookingManager({ bookings, setBookings, properties }) {
                 <textarea className="form-control" rows={2} placeholder="e.g. Early check-in requested, pets allowed…" value={form.notes} onChange={e => setField('notes', e.target.value)} />
               </div>
 
-              {/* Auto-task preview */}
-              {form.check_in_date && form.check_out_date && (
-                <div style={{ background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.2)', borderRadius: 10, padding: '0.75rem' }}>
-                  <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#c4b5fd', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.5rem' }}>Tasks that will be auto-generated</div>
-                  {[
-                    { label: 'Checkout Cleaning', date: form.check_out_date, time: form.check_out_time, color: '#a78bfa' },
-                    { label: 'Check-in Cleaning', date: form.check_in_date, time: '10:00', color: '#60a5fa' },
-                    { label: 'Check-in / Meet & Greet', date: form.check_in_date, time: form.check_in_time, color: '#2dd4af' },
-                  ].map((t, i) => (
-                    <div key={i} style={{ fontSize: '0.78rem', color: t.color, display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.25rem' }}>
-                      <Check size={11} /> <strong>{t.label}</strong> · {formatDate(t.date)} at {t.time}
-                    </div>
-                  ))}
-                </div>
-              )}
+              {/* Auto-task preview (smart logic) */}
+              {form.check_in_date && form.check_out_date && (() => {
+                const preview = getAutoTasks({ ...form, id: editId || '__preview__' });
+                return (
+                  <div style={{ background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.2)', borderRadius: 10, padding: '0.75rem' }}>
+                    <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#c4b5fd', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.5rem' }}>Tasks that will be auto-generated</div>
+                    {preview.map((t, i) => (
+                      <div key={i} style={{ fontSize: '0.78rem', color: t.dim ? 'var(--text-secondary)' : t.color, display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.25rem', opacity: t.dim ? 0.7 : 1 }}>
+                        <Check size={11} /> <strong>{t.icon} {t.label}</strong> · {formatDate(t.date)} {t.time !== '—' ? `at ${t.time}` : ''}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
 
             <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1.25rem' }}>

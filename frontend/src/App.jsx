@@ -131,30 +131,33 @@ function App() {
     );
   };
 
-  // ── Convert bookings to scheduler tasks ───────────────────────────────────
-  // Each booking auto-generates: Checkout Cleaning, Check-in Cleaning, Check-in
-  // These have assigned_date = ISO date string so the scheduler routes them correctly
+  // ── Convert bookings to scheduler tasks (smart cleaning logic) ──────────────
+  // Rules:
+  //   • Same-day checkout → check-in:    Checkout Cleaning only (no Check-in Cleaning)
+  //   • Previous checkout ≤ 7 days ago:  Touch Up instead of Check-in Cleaning
+  //   • All other check-ins:             Full Check-in Cleaning
   const bookingTasks = React.useMemo(() => {
     const bt = [];
-    bookings.filter(b => b.status !== 'cancelled').forEach(b => {
+    const active = bookings.filter(b => b.status !== 'cancelled');
+
+    active.forEach(b => {
       const prop = properties.find(p => p.id === b.property_id);
-      const propName = prop?.name || 'Unknown';
       const bedsCount = prop?.bedrooms || 2;
-      // Parse check-out time to minutes
       const [coH, coM] = (b.check_out_time || '11:00').split(':').map(Number);
       const checkOutMins = coH * 60 + coM;
-      // Parse check-in time to minutes
       const [ciH, ciM] = (b.check_in_time || '15:00').split(':').map(Number);
       const checkInMins = ciH * 60 + ciM;
-      const cleanDuration = Math.max(60, bedsCount * 45); // e.g. 2 beds = 90min
+      const cleanDuration = Math.max(60, bedsCount * 45);
+      const touchUpDuration = Math.max(30, Math.round(cleanDuration * 0.4));
 
+      // ── Checkout Cleaning (always generated) ──
       if (b.check_out_date) {
         bt.push({
           id: `bk_checkout_${b.id}`,
           property_id: b.property_id,
           task_type: 'Checkout Cleaning',
           duration_mins: cleanDuration,
-          time_window_start_mins: 480, // 8:00 AM
+          time_window_start_mins: 480,
           time_window_end_mins: checkOutMins,
           required_roles: ['Cleaner'],
           priority: 1,
@@ -164,21 +167,64 @@ function App() {
           auto_from_booking: true,
         });
       }
+
+      // ── Check-in tasks (smart cleaning logic) ──
       if (b.check_in_date) {
-        bt.push({
-          id: `bk_clean_${b.id}`,
-          property_id: b.property_id,
-          task_type: 'Check-in Cleaning',
-          duration_mins: cleanDuration,
-          time_window_start_mins: 480,
-          time_window_end_mins: checkInMins - 30,
-          required_roles: ['Cleaner'],
-          priority: 1,
-          assigned_date: b.check_in_date,
-          booking_id: b.id,
-          booking_guest: b.guest_name,
-          auto_from_booking: true,
-        });
+        // Find the most recent checkout for the SAME property before this check-in
+        const prevCheckout = active
+          .filter(other =>
+            other.id !== b.id &&
+            other.property_id === b.property_id &&
+            other.check_out_date &&
+            other.check_out_date <= b.check_in_date
+          )
+          .sort((x, y) => y.check_out_date.localeCompare(x.check_out_date))[0];
+
+        const daysSinceCheckout = prevCheckout
+          ? Math.round((new Date(b.check_in_date) - new Date(prevCheckout.check_out_date)) / 86400000)
+          : null;
+
+        const isSameDay    = daysSinceCheckout === 0;  // checkout + check-in same day
+        const isWithinWeek = daysSinceCheckout !== null && daysSinceCheckout > 0 && daysSinceCheckout <= 7;
+
+        if (isSameDay) {
+          // Checkout cleaning from the departing booking already preps the unit.
+          // No separate cleaning task needed — just the check-in.
+        } else if (isWithinWeek) {
+          // Property was recently cleaned — Touch Up is enough
+          bt.push({
+            id: `bk_touchup_${b.id}`,
+            property_id: b.property_id,
+            task_type: 'Touch Up',
+            duration_mins: touchUpDuration,
+            time_window_start_mins: 480,
+            time_window_end_mins: checkInMins - 30,
+            required_roles: ['Cleaner'],
+            priority: 1,
+            assigned_date: b.check_in_date,
+            booking_id: b.id,
+            booking_guest: b.guest_name,
+            auto_from_booking: true,
+          });
+        } else {
+          // No recent cleaning — full Check-in Cleaning required
+          bt.push({
+            id: `bk_clean_${b.id}`,
+            property_id: b.property_id,
+            task_type: 'Check-in Cleaning',
+            duration_mins: cleanDuration,
+            time_window_start_mins: 480,
+            time_window_end_mins: checkInMins - 30,
+            required_roles: ['Cleaner'],
+            priority: 1,
+            assigned_date: b.check_in_date,
+            booking_id: b.id,
+            booking_guest: b.guest_name,
+            auto_from_booking: true,
+          });
+        }
+
+        // Check-in / Meet & Greet always generated
         bt.push({
           id: `bk_checkin_${b.id}`,
           property_id: b.property_id,
@@ -197,6 +243,7 @@ function App() {
     });
     return bt;
   }, [bookings, properties]);
+
 
   const handleTeachAI = async () => {
     if (!feedbackText.trim()) return;
