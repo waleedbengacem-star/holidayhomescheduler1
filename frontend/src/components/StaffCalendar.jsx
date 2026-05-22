@@ -8,6 +8,7 @@ export default function StaffCalendar({ staff, offDaysRaw, setOffDaysRaw, setSta
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [isCollapsed, setIsCollapsed] = useLocalStorage('hhs_cal_collapsed', false);
   const [showPatternModal, setShowPatternModal] = useState(false);
+  const [openPopup, setOpenPopup] = useState(null); // staffId of open recurring popup
 
   const monthName = new Date(viewYear, viewMonth).toLocaleString('default', { month: 'long', year: 'numeric' });
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
@@ -181,28 +182,64 @@ export default function StaffCalendar({ staff, offDaysRaw, setOffDaysRaw, setSta
           <tbody>
             {staff.map(s => (
               <tr key={s.id}>
-                <td className="cal-staff-name" style={{ verticalAlign: 'middle', paddingTop: '0.4rem', paddingBottom: '0.4rem' }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.82rem' }}>{s.name}</div>
-                  <div style={{ fontSize: '0.65rem', opacity: 0.6 }}>{s.roles?.join(', ') || s.role}</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.15rem', marginTop: '0.2rem', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.58rem', color: 'var(--text-secondary)', marginRight: '0.1rem', opacity: 0.7 }}>Off:</span>
-                    {DAYS.map((dowStr, i) => {
-                      const isRec = (s.recurring_off_days || []).includes(i);
-                      return (
-                        <button key={i}
-                          onClick={() => toggleRecurring(s.id, i)}
-                          title={`Toggle ${dowStr} as recurring off-day for ${s.name}`}
-                          style={{
-                            fontSize: '0.58rem', padding: '0.05rem 0.18rem', cursor: 'pointer',
-                            borderRadius: 3, border: `1px solid ${isRec ? '#fca5a5' : 'var(--border-glass)'}`,
-                            background: isRec ? '#fee2e2' : 'transparent', color: isRec ? '#ef4444' : 'var(--text-secondary)'
-                          }}
-                        >
-                          {dowStr.charAt(0)}
-                        </button>
-                      );
-                    })}
+                <td className="cal-staff-name" style={{ verticalAlign: 'middle', paddingTop: '0.4rem', paddingBottom: '0.4rem', position: 'relative' }}>
+                  <div
+                    onClick={() => setOpenPopup(openPopup === s.id ? null : s.id)}
+                    title="Click to set recurring off-days"
+                    style={{ fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                  >
+                    {s.name}
+                    <span style={{ fontSize: '0.6rem', opacity: 0.45 }}>▾</span>
                   </div>
+                  <div style={{ fontSize: '0.65rem', opacity: 0.6 }}>{s.roles?.join(', ') || s.role}</div>
+
+                  {/* Recurring off-day popup */}
+                  {openPopup === s.id && (
+                    <>
+                      {/* Backdrop to close on outside click */}
+                      <div
+                        onClick={() => setOpenPopup(null)}
+                        style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+                      />
+                      <div style={{
+                        position: 'absolute', top: '100%', left: 0, zIndex: 100,
+                        background: 'linear-gradient(135deg, rgba(25,12,45,0.98), rgba(20,8,38,0.99))',
+                        border: '1px solid rgba(240,59,106,0.3)',
+                        borderRadius: 10, padding: '0.75rem',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                        minWidth: 180,
+                      }}>
+                        <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                          Recurring Off Days
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+                          {DAYS.map((dowStr, i) => {
+                            const isRec = (s.recurring_off_days || []).includes(i);
+                            return (
+                              <button key={i}
+                                onClick={(e) => { e.stopPropagation(); toggleRecurring(s.id, i); }}
+                                title={`Toggle ${dowStr} as recurring off-day`}
+                                style={{
+                                  fontSize: '0.72rem', padding: '0.25rem 0.45rem', cursor: 'pointer',
+                                  borderRadius: 6,
+                                  border: `1px solid ${isRec ? '#fca5a5' : 'rgba(255,255,255,0.15)'}`,
+                                  background: isRec ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.05)',
+                                  color: isRec ? '#f87171' : 'var(--text-secondary)',
+                                  fontWeight: isRec ? 700 : 400,
+                                  transition: 'all 0.15s',
+                                }}
+                              >
+                                {dowStr}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div style={{ marginTop: '0.5rem', fontSize: '0.62rem', color: 'var(--text-secondary)', opacity: 0.5 }}>
+                          Click a day to toggle recurring off
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </td>
                 {days.map(d => {
                   const dow = new Date(viewYear, viewMonth, d).getDay();
