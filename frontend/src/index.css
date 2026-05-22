@@ -566,7 +566,8 @@ h1 {
   text-align: center;
   padding: 0;
 }
-.cal-staff-col { min-width: 110px; padding: 0.5rem 0.75rem !important; text-align: left !important; }
+.cal-staff-col { min-width: 120px; padding: 0.5rem 0.5rem !important; text-align: center !important; }
+.cal-staff-name { text-align: center !important; }
 .cal-day-col {
   min-width: 44px;
   width: 44px;

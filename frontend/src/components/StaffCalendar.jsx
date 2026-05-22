@@ -217,11 +217,11 @@ export default function StaffCalendar({ staff, offDaysRaw, setOffDaysRaw, setSta
           <tbody>
             {filteredStaff.map(s => (
               <tr key={s.id}>
-                <td className="cal-staff-name" style={{ verticalAlign: 'middle', paddingTop: '0.4rem', paddingBottom: '0.4rem', position: 'relative' }}>
+                <td className="cal-staff-name" style={{ verticalAlign: 'middle', paddingTop: '0.4rem', paddingBottom: '0.4rem', position: 'relative', textAlign: 'center' }}>
                   <div
                     onClick={() => setOpenPopup(openPopup === s.id ? null : s.id)}
                     title="Click to set recurring off-days"
-                    style={{ fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                    style={{ fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}
                   >
                     {s.name}
                     <span style={{ fontSize: '0.6rem', opacity: 0.45 }}>▾</span>
