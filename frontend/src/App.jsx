@@ -7,6 +7,7 @@ import WhatsAppImportModal from './components/WhatsAppImportModal';
 import ExcelImport from './components/ExcelImport';
 import PropertyGrid from './components/PropertyGrid';
 import StaffPlatform from './components/StaffPlatform';
+import PropertyDetail from './components/PropertyDetail';
 import { useLocalStorage } from './hooks/useLocalStorage';
 
 const initialProperties = [
@@ -124,6 +125,13 @@ function App() {
   const [aiSuccess, setAiSuccess] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useLocalStorage('hhs_sidebar_open', true);
   const [activePlatform, setActivePlatform] = useLocalStorage('hhs_active_platform', 'scheduler');
+  const [selectedPropertyName, setSelectedPropertyName] = useState(null);
+
+  // Navigate to property detail by name
+  const openPropertyDetail = (name) => {
+    setSelectedPropertyName(name);
+    setActivePlatform('property-detail');
+  };
 
   const toggleTaskCompletion = (taskId) => {
     setCompletedTasks(prev => 
@@ -1510,8 +1518,33 @@ function App() {
           bookings={bookings}
           setBookings={setBookings}
           properties={properties}
+          onPropertyClick={openPropertyDetail}
         />
       )}
+
+      {/* Property Detail Platform */}
+      {activePlatform === 'property-detail' && selectedPropertyName && (() => {
+        // Find matching scheduler property by name
+        const prop = properties.find(p => p.name.toLowerCase() === selectedPropertyName.toLowerCase())
+          || { id: '__grid__', name: selectedPropertyName, bedrooms: null };
+        // Read grid data from localStorage
+        let gridCols = [], gridRows = [];
+        try {
+          const rc = localStorage.getItem('hhs_prop_grid_cols');
+          const rr = localStorage.getItem('hhs_prop_grid_rows');
+          if (rc) gridCols = JSON.parse(rc);
+          if (rr) gridRows = JSON.parse(rr);
+        } catch (_) {}
+        return (
+          <PropertyDetail
+            property={prop}
+            bookings={bookings}
+            gridCols={gridCols}
+            gridRows={gridRows}
+            onBack={() => setActivePlatform('properties')}
+          />
+        );
+      })()}
 
       {/* Staff Platform */}
       {activePlatform === 'staff' && (

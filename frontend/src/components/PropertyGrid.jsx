@@ -23,7 +23,7 @@ const DEFAULT_ROWS = [
 function newRowId() { return 'row_' + Date.now(); }
 function newColId() { return 'col_' + Date.now(); }
 
-export default function PropertyGrid({ bookings, setBookings, properties }) {
+export default function PropertyGrid({ bookings, setBookings, properties, onPropertyClick }) {
   const [activeTab, setActiveTab] = useState('grid');
   const [cols, setCols] = useLocalStorage('hhs_prop_grid_cols', DEFAULT_COLS);
   const [rows, setRows] = useLocalStorage('hhs_prop_grid_rows', DEFAULT_ROWS);
@@ -320,17 +320,28 @@ export default function PropertyGrid({ bookings, setBookings, properties }) {
                 {cols.map(col => (
                   <td
                     key={col.id}
-                    onClick={() => setEditingCell({ rowId: row.id, colId: col.id })}
+                    onClick={() => {
+                      // Clicking the name column navigates to property detail
+                      if (col.id === 'col_name' && onPropertyClick) {
+                        const name = getCellVal(row, col.id);
+                        if (name) { onPropertyClick(name); return; }
+                      }
+                      setEditingCell({ rowId: row.id, colId: col.id });
+                    }}
                     style={{
                       padding: '0.35rem 0.6rem',
                       borderRight: '1px solid var(--border-glass)',
                       verticalAlign: 'middle',
-                      cursor: 'text',
+                      cursor: col.id === 'col_name' && onPropertyClick ? 'pointer' : 'text',
                       maxWidth: col.width,
                       overflow: 'hidden',
                     }}
                   >
-                    {renderCell(row, col)}
+                    {col.id === 'col_name' && onPropertyClick ? (
+                      <span style={{ fontSize: '0.82rem', color: '#60a5fa', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: 2, cursor: 'pointer' }}>
+                        {getCellVal(row, col.id) || '—'}
+                      </span>
+                    ) : renderCell(row, col)}
                   </td>
                 ))}
 
