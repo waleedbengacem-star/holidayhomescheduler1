@@ -9,6 +9,11 @@ export default function StaffCalendar({ staff, offDaysRaw, setOffDaysRaw, setSta
   const [isCollapsed, setIsCollapsed] = useLocalStorage('hhs_cal_collapsed', false);
   const [showPatternModal, setShowPatternModal] = useState(false);
   const [openPopup, setOpenPopup] = useState(null); // staffId of open recurring popup
+  const [roleFilter, setRoleFilter] = useState('All');
+
+  // Derive unique roles from staff list
+  const allRoles = ['All', ...Array.from(new Set(staff.flatMap(s => s.roles || (s.role ? [s.role] : []))))];
+  const filteredStaff = roleFilter === 'All' ? staff : staff.filter(s => (s.roles || [s.role]).includes(roleFilter));
 
   const monthName = new Date(viewYear, viewMonth).toLocaleString('default', { month: 'long', year: 'numeric' });
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
@@ -162,6 +167,36 @@ export default function StaffCalendar({ staff, offDaysRaw, setOffDaysRaw, setSta
 
       {!isCollapsed && (
         <>
+          {/* Role filter pills */}
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+            {allRoles.map(role => (
+              <button
+                key={role}
+                onClick={() => setRoleFilter(role)}
+                style={{
+                  padding: '0.25rem 0.75rem',
+                  borderRadius: 20,
+                  border: `1px solid ${roleFilter === role ? 'rgba(240,59,106,0.6)' : 'var(--border-glass)'}`,
+                  background: roleFilter === role
+                    ? 'linear-gradient(135deg, rgba(240,59,106,0.2), rgba(167,139,250,0.15))'
+                    : 'rgba(255,255,255,0.04)',
+                  color: roleFilter === role ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  fontSize: '0.75rem',
+                  fontWeight: roleFilter === role ? 600 : 400,
+                  cursor: 'pointer',
+                  transition: 'all 0.18s',
+                }}
+              >
+                {role}
+                {role !== 'All' && (
+                  <span style={{ marginLeft: '0.35rem', opacity: 0.55, fontSize: '0.65rem' }}>
+                    {staff.filter(s => (s.roles || [s.role]).includes(role)).length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
           <div style={{ overflowX: 'auto' }}>
             <table className="cal-table">
               <thead>
@@ -180,7 +215,7 @@ export default function StaffCalendar({ staff, offDaysRaw, setOffDaysRaw, setSta
             </tr>
           </thead>
           <tbody>
-            {staff.map(s => (
+            {filteredStaff.map(s => (
               <tr key={s.id}>
                 <td className="cal-staff-name" style={{ verticalAlign: 'middle', paddingTop: '0.4rem', paddingBottom: '0.4rem', position: 'relative' }}>
                   <div
