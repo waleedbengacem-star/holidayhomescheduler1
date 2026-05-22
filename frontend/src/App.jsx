@@ -119,6 +119,8 @@ function App() {
   const [isLearning, setIsLearning] = useState(false);
   const [aiError, setAiError] = useState(null);
   const [aiSuccess, setAiSuccess] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useLocalStorage('hhs_sidebar_open', true);
+  const [activePlatform, setActivePlatform] = useLocalStorage('hhs_active_platform', 'scheduler');
 
   const toggleTaskCompletion = (taskId) => {
     setCompletedTasks(prev => 
@@ -1193,7 +1195,117 @@ function App() {
   };
 
   return (
-    <div className="app-container">
+    <div style={{ display: 'flex', minHeight: '100vh', position: 'relative' }}>
+
+      {/* ── LEFT SIDEBAR ─────────────────────────────── */}
+      <aside style={{
+        width: sidebarOpen ? 220 : 0,
+        minWidth: sidebarOpen ? 220 : 0,
+        transition: 'width 0.3s cubic-bezier(0.4,0,0.2,1), min-width 0.3s cubic-bezier(0.4,0,0.2,1)',
+        overflow: 'hidden',
+        background: 'linear-gradient(180deg, rgba(20,10,35,0.98) 0%, rgba(15,5,25,0.99) 100%)',
+        borderRight: '1px solid rgba(240,59,106,0.15)',
+        display: 'flex',
+        flexDirection: 'column',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        bottom: 0,
+        zIndex: 200,
+        boxShadow: sidebarOpen ? '4px 0 24px rgba(0,0,0,0.4)' : 'none',
+      }}>
+        <div style={{ padding: '1.25rem 1rem 1rem', borderBottom: '1px solid rgba(240,59,106,0.12)', display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 220 }}>
+          <img src="/airbetter-logo.png" alt="Airbetter" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', boxShadow: '0 0 12px rgba(240,59,106,0.4)', flexShrink: 0 }} />
+          <div style={{ overflow: 'hidden' }}>
+            <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>Airbetter</div>
+            <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', opacity: 0.7 }}>Operations Hub</div>
+          </div>
+        </div>
+
+        {/* Platform Nav */}
+        <nav style={{ flex: 1, padding: '1rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.35rem', minWidth: 220 }}>
+          <div style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.1em', color: 'var(--text-secondary)', opacity: 0.5, marginBottom: '0.35rem', paddingLeft: '0.5rem', textTransform: 'uppercase' }}>Platforms</div>
+
+          {/* Scheduler — active */}
+          <button
+            onClick={() => setActivePlatform('scheduler')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '0.75rem',
+              padding: '0.6rem 0.75rem', borderRadius: 10, border: 'none', cursor: 'pointer',
+              background: activePlatform === 'scheduler' ? 'linear-gradient(135deg, rgba(240,59,106,0.18), rgba(167,139,250,0.12))' : 'transparent',
+              boxShadow: activePlatform === 'scheduler' ? 'inset 0 0 0 1px rgba(240,59,106,0.3)' : 'none',
+              color: activePlatform === 'scheduler' ? 'var(--text-primary)' : 'var(--text-secondary)',
+              fontSize: '0.85rem', fontWeight: activePlatform === 'scheduler' ? 600 : 400,
+              textAlign: 'left', transition: 'all 0.2s', whiteSpace: 'nowrap', width: '100%',
+            }}
+          >
+            <span style={{ fontSize: '1.1rem' }}>📅</span>
+            <span>Scheduler</span>
+            {activePlatform === 'scheduler' && <span style={{ marginLeft: 'auto', width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-pink)', flexShrink: 0 }} />}
+          </button>
+
+          {/* Placeholder platforms — coming soon */}
+          {[
+            { icon: '💬', label: 'WhatsApp Hub', key: 'whatsapp' },
+            { icon: '📊', label: 'Analytics', key: 'analytics' },
+            { icon: '🏠', label: 'Properties', key: 'properties' },
+            { icon: '👥', label: 'CRM', key: 'crm' },
+          ].map(p => (
+            <button
+              key={p.key}
+              disabled
+              title="Coming soon"
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.75rem',
+                padding: '0.6rem 0.75rem', borderRadius: 10, border: 'none', cursor: 'not-allowed',
+                background: 'transparent', color: 'var(--text-secondary)',
+                fontSize: '0.85rem', fontWeight: 400, opacity: 0.38,
+                textAlign: 'left', whiteSpace: 'nowrap', width: '100%',
+              }}
+            >
+              <span style={{ fontSize: '1.1rem' }}>{p.icon}</span>
+              <span>{p.label}</span>
+              <span style={{ marginLeft: 'auto', fontSize: '0.6rem', background: 'rgba(255,255,255,0.08)', padding: '0.1rem 0.4rem', borderRadius: 4, color: 'var(--text-secondary)' }}>Soon</span>
+            </button>
+          ))}
+        </nav>
+
+        {/* Sidebar footer */}
+        <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid rgba(255,255,255,0.05)', minWidth: 220 }}>
+          <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', opacity: 0.4, textAlign: 'center' }}>v1.0 · Airbetter Ops</div>
+        </div>
+      </aside>
+
+      {/* ── SIDEBAR TOGGLE BUTTON ─────────────────────── */}
+      <button
+        onClick={() => setSidebarOpen(o => !o)}
+        title={sidebarOpen ? 'Collapse sidebar' : 'Open sidebar'}
+        style={{
+          position: 'fixed',
+          top: '1.1rem',
+          left: sidebarOpen ? 228 : 12,
+          transition: 'left 0.3s cubic-bezier(0.4,0,0.2,1)',
+          zIndex: 300,
+          background: 'rgba(30,15,50,0.95)',
+          border: '1px solid rgba(240,59,106,0.35)',
+          borderRadius: 8,
+          width: 32, height: 32,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
+          color: 'var(--text-primary)',
+          fontSize: '1rem',
+        }}
+      >
+        {sidebarOpen ? '◀' : '☰'}
+      </button>
+
+      {/* ── MAIN CONTENT ─────────────────────────────── */}
+      <div className="app-container" style={{
+        marginLeft: sidebarOpen ? 220 : 0,
+        transition: 'margin-left 0.3s cubic-bezier(0.4,0,0.2,1)',
+        flex: 1, minWidth: 0,
+      }}>
       <header>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', marginBottom: '0.5rem' }}>
           <img
@@ -2275,6 +2387,7 @@ function App() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
