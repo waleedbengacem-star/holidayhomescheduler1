@@ -6,6 +6,7 @@ import PropertyItineraryModal from './components/PropertyItineraryModal';
 import WhatsAppImportModal from './components/WhatsAppImportModal';
 import ExcelImport from './components/ExcelImport';
 import PropertyGrid from './components/PropertyGrid';
+import StaffPlatform from './components/StaffPlatform';
 import { useLocalStorage } from './hooks/useLocalStorage';
 
 const initialProperties = [
@@ -1263,11 +1264,28 @@ function App() {
             {activePlatform === 'properties' && <span style={{ marginLeft: 'auto', width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-pink)', flexShrink: 0 }} />}
           </button>
 
+          {/* Staff — live */}
+          <button
+            onClick={() => setActivePlatform('staff')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '0.75rem',
+              padding: '0.6rem 0.75rem', borderRadius: 10, border: 'none', cursor: 'pointer',
+              background: activePlatform === 'staff' ? 'linear-gradient(135deg, rgba(240,59,106,0.18), rgba(167,139,250,0.12))' : 'transparent',
+              boxShadow: activePlatform === 'staff' ? 'inset 0 0 0 1px rgba(240,59,106,0.3)' : 'none',
+              color: activePlatform === 'staff' ? 'var(--text-primary)' : 'var(--text-secondary)',
+              fontSize: '0.85rem', fontWeight: activePlatform === 'staff' ? 600 : 400,
+              textAlign: 'left', transition: 'all 0.2s', whiteSpace: 'nowrap', width: '100%',
+            }}
+          >
+            <span style={{ fontSize: '1.1rem' }}>👥</span>
+            <span>Staff</span>
+            {activePlatform === 'staff' && <span style={{ marginLeft: 'auto', width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-pink)', flexShrink: 0 }} />}
+          </button>
+
           {/* Remaining placeholder platforms — coming soon */}
           {[
             { icon: '💬', label: 'WhatsApp Hub', key: 'whatsapp' },
             { icon: '📊', label: 'Analytics', key: 'analytics' },
-            { icon: '👥', label: 'CRM', key: 'crm' },
           ].map(p => (
             <button
               key={p.key}
@@ -1328,6 +1346,17 @@ function App() {
 
       {/* Properties Grid Platform */}
       {activePlatform === 'properties' && <PropertyGrid />}
+
+      {/* Staff Platform */}
+      {activePlatform === 'staff' && (
+        <StaffPlatform
+          staff={staff}
+          setStaff={setStaff}
+          schedule={schedule}
+          completedTasks={completedTasks}
+          properties={properties}
+        />
+      )}
 
       {/* Scheduler Platform */}
       {activePlatform === 'scheduler' && <>
