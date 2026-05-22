@@ -181,11 +181,11 @@ export default function StaffCalendar({ staff, offDaysRaw, setOffDaysRaw, setSta
           <tbody>
             {staff.map(s => (
               <tr key={s.id}>
-                <td className="cal-staff-name" style={{ verticalAlign: 'top', paddingTop: '1rem' }}>
-                  <div style={{ fontWeight: 600 }}>{s.name}</div>
-                  <div style={{ fontSize: '0.7rem', opacity: 0.6, marginBottom: '0.5rem' }}>{s.roles?.join(', ') || s.role}</div>
-                  <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>Recurring Off:</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.2rem', marginTop: '0.2rem' }}>
+                <td className="cal-staff-name" style={{ verticalAlign: 'middle', paddingTop: '0.4rem', paddingBottom: '0.4rem' }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.82rem' }}>{s.name}</div>
+                  <div style={{ fontSize: '0.65rem', opacity: 0.6 }}>{s.roles?.join(', ') || s.role}</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.15rem', marginTop: '0.2rem', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.58rem', color: 'var(--text-secondary)', marginRight: '0.1rem', opacity: 0.7 }}>Off:</span>
                     {DAYS.map((dowStr, i) => {
                       const isRec = (s.recurring_off_days || []).includes(i);
                       return (
@@ -193,7 +193,7 @@ export default function StaffCalendar({ staff, offDaysRaw, setOffDaysRaw, setSta
                           onClick={() => toggleRecurring(s.id, i)}
                           title={`Toggle ${dowStr} as recurring off-day for ${s.name}`}
                           style={{
-                            fontSize: '0.6rem', padding: '0.1rem 0.2rem', cursor: 'pointer',
+                            fontSize: '0.58rem', padding: '0.05rem 0.18rem', cursor: 'pointer',
                             borderRadius: 3, border: `1px solid ${isRec ? '#fca5a5' : 'var(--border-glass)'}`,
                             background: isRec ? '#fee2e2' : 'transparent', color: isRec ? '#ef4444' : 'var(--text-secondary)'
                           }}
