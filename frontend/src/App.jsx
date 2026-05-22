@@ -5,6 +5,7 @@ import AddModal, { PropertyPicker } from './components/AddModal';
 import PropertyItineraryModal from './components/PropertyItineraryModal';
 import WhatsAppImportModal from './components/WhatsAppImportModal';
 import ExcelImport from './components/ExcelImport';
+import PropertyGrid from './components/PropertyGrid';
 import { useLocalStorage } from './hooks/useLocalStorage';
 
 const initialProperties = [
@@ -1244,11 +1245,28 @@ function App() {
             {activePlatform === 'scheduler' && <span style={{ marginLeft: 'auto', width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-pink)', flexShrink: 0 }} />}
           </button>
 
-          {/* Placeholder platforms — coming soon */}
+          {/* Properties — live */}
+          <button
+            onClick={() => setActivePlatform('properties')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '0.75rem',
+              padding: '0.6rem 0.75rem', borderRadius: 10, border: 'none', cursor: 'pointer',
+              background: activePlatform === 'properties' ? 'linear-gradient(135deg, rgba(240,59,106,0.18), rgba(167,139,250,0.12))' : 'transparent',
+              boxShadow: activePlatform === 'properties' ? 'inset 0 0 0 1px rgba(240,59,106,0.3)' : 'none',
+              color: activePlatform === 'properties' ? 'var(--text-primary)' : 'var(--text-secondary)',
+              fontSize: '0.85rem', fontWeight: activePlatform === 'properties' ? 600 : 400,
+              textAlign: 'left', transition: 'all 0.2s', whiteSpace: 'nowrap', width: '100%',
+            }}
+          >
+            <span style={{ fontSize: '1.1rem' }}>🏠</span>
+            <span>Properties</span>
+            {activePlatform === 'properties' && <span style={{ marginLeft: 'auto', width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-pink)', flexShrink: 0 }} />}
+          </button>
+
+          {/* Remaining placeholder platforms — coming soon */}
           {[
             { icon: '💬', label: 'WhatsApp Hub', key: 'whatsapp' },
             { icon: '📊', label: 'Analytics', key: 'analytics' },
-            { icon: '🏠', label: 'Properties', key: 'properties' },
             { icon: '👥', label: 'CRM', key: 'crm' },
           ].map(p => (
             <button
@@ -1305,7 +1323,14 @@ function App() {
         marginLeft: sidebarOpen ? 220 : 0,
         transition: 'margin-left 0.3s cubic-bezier(0.4,0,0.2,1)',
         flex: 1, minWidth: 0,
+        padding: activePlatform === 'properties' ? 0 : undefined,
       }}>
+
+      {/* Properties Grid Platform */}
+      {activePlatform === 'properties' && <PropertyGrid />}
+
+      {/* Scheduler Platform */}
+      {activePlatform === 'scheduler' && <>
       <header>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', marginBottom: '0.5rem' }}>
           <img
@@ -2384,6 +2409,7 @@ function App() {
           </div>
         </div>
       )}
+      </> /* end scheduler platform */}
       </div>
     </div>
   );
