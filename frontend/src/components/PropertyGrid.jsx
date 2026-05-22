@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Trash2, Plus, GripVertical, Edit2, Check, X } from 'lucide-react';
+import BookingManager from './BookingManager';
 
 const DEFAULT_COLS = [
   { id: 'col_name',     label: 'Property Name',    type: 'text',  width: 200, fixed: true },
@@ -22,7 +23,8 @@ const DEFAULT_ROWS = [
 function newRowId() { return 'row_' + Date.now(); }
 function newColId() { return 'col_' + Date.now(); }
 
-export default function PropertyGrid() {
+export default function PropertyGrid({ bookings, setBookings, properties }) {
+  const [activeTab, setActiveTab] = useState('grid');
   const [cols, setCols] = useLocalStorage('hhs_prop_grid_cols', DEFAULT_COLS);
   const [rows, setRows] = useLocalStorage('hhs_prop_grid_rows', DEFAULT_ROWS);
   const [editingCell, setEditingCell] = useState(null); // { rowId, colId }
@@ -162,15 +164,46 @@ export default function PropertyGrid() {
   return (
     <div style={{ padding: '1.5rem', minHeight: '100vh' }}>
 
-      {/* ── Header ── */}
+      {/* ── Platform Header ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>🏠 Property Info</h1>
+          <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>🏠 Properties</h1>
           <p style={{ margin: '0.25rem 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-            {rows.length} properties · {cols.length} columns
+            {rows.length} properties · {bookings?.length || 0} bookings
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: '0.3rem', background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: '0.3rem' }}>
+          {[['grid','📋 Property Info'],['bookings','📅 Bookings']].map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              style={{
+                padding: '0.4rem 1rem', borderRadius: 8, border: 'none', cursor: 'pointer',
+                background: activeTab === key ? 'linear-gradient(135deg, rgba(240,59,106,0.25), rgba(167,139,250,0.2))' : 'transparent',
+                boxShadow: activeTab === key ? 'inset 0 0 0 1px rgba(240,59,106,0.35)' : 'none',
+                color: activeTab === key ? 'var(--text-primary)' : 'var(--text-secondary)',
+                fontSize: '0.82rem', fontWeight: activeTab === key ? 700 : 400,
+                transition: 'all 0.18s',
+              }}
+            >{label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Bookings Tab ── */}
+      {activeTab === 'bookings' && (
+        <BookingManager
+          bookings={bookings || []}
+          setBookings={setBookings || (() => {})}
+          properties={properties || []}
+        />
+      )}
+
+      {/* ── Property Info Grid Tab ── */}
+      {activeTab === 'grid' && (<>
+        {/* Toolbar */}
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '1rem' }}>
           {/* Search */}
           <div style={{ position: 'relative' }}>
             <span style={{ position: 'absolute', left: '0.6rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.4, fontSize: '0.85rem' }}>🔍</span>
@@ -194,7 +227,6 @@ export default function PropertyGrid() {
             <Plus size={14} /> Add Property
           </button>
         </div>
-      </div>
 
       {/* ── Grid Table ── */}
       <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid var(--border-glass)', background: 'rgba(255,255,255,0.02)' }}>
@@ -405,6 +437,7 @@ export default function PropertyGrid() {
       <style>{`
         th:hover .col-del-btn { opacity: 1 !important; }
       `}</style>
+      </>)}
     </div>
   );
 }

@@ -79,6 +79,7 @@ function App() {
   const [completedTasks, setCompletedTasks] = useLocalStorage('hhs_completed_tasks', []);
   const [expertRules, setExpertRules] = useLocalStorage('hhs_expert_rules', []);
   const [schedule, setSchedule] = useState(null);
+  const [bookings, setBookings] = useLocalStorage('hhs_bookings', []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
@@ -129,6 +130,73 @@ function App() {
       prev.includes(taskId) ? prev.filter(id => id !== taskId) : [...prev, taskId]
     );
   };
+
+  // ── Convert bookings to scheduler tasks ───────────────────────────────────
+  // Each booking auto-generates: Checkout Cleaning, Check-in Cleaning, Check-in
+  // These have assigned_date = ISO date string so the scheduler routes them correctly
+  const bookingTasks = React.useMemo(() => {
+    const bt = [];
+    bookings.filter(b => b.status !== 'cancelled').forEach(b => {
+      const prop = properties.find(p => p.id === b.property_id);
+      const propName = prop?.name || 'Unknown';
+      const bedsCount = prop?.bedrooms || 2;
+      // Parse check-out time to minutes
+      const [coH, coM] = (b.check_out_time || '11:00').split(':').map(Number);
+      const checkOutMins = coH * 60 + coM;
+      // Parse check-in time to minutes
+      const [ciH, ciM] = (b.check_in_time || '15:00').split(':').map(Number);
+      const checkInMins = ciH * 60 + ciM;
+      const cleanDuration = Math.max(60, bedsCount * 45); // e.g. 2 beds = 90min
+
+      if (b.check_out_date) {
+        bt.push({
+          id: `bk_checkout_${b.id}`,
+          property_id: b.property_id,
+          task_type: 'Checkout Cleaning',
+          duration_mins: cleanDuration,
+          time_window_start_mins: 480, // 8:00 AM
+          time_window_end_mins: checkOutMins,
+          required_roles: ['Cleaner'],
+          priority: 1,
+          assigned_date: b.check_out_date,
+          booking_id: b.id,
+          booking_guest: b.guest_name,
+          auto_from_booking: true,
+        });
+      }
+      if (b.check_in_date) {
+        bt.push({
+          id: `bk_clean_${b.id}`,
+          property_id: b.property_id,
+          task_type: 'Check-in Cleaning',
+          duration_mins: cleanDuration,
+          time_window_start_mins: 480,
+          time_window_end_mins: checkInMins - 30,
+          required_roles: ['Cleaner'],
+          priority: 1,
+          assigned_date: b.check_in_date,
+          booking_id: b.id,
+          booking_guest: b.guest_name,
+          auto_from_booking: true,
+        });
+        bt.push({
+          id: `bk_checkin_${b.id}`,
+          property_id: b.property_id,
+          task_type: 'Check-in',
+          duration_mins: 30,
+          time_window_start_mins: checkInMins,
+          time_window_end_mins: checkInMins + 60,
+          required_roles: ['PA'],
+          priority: 1,
+          assigned_date: b.check_in_date,
+          booking_id: b.id,
+          booking_guest: b.guest_name,
+          auto_from_booking: true,
+        });
+      }
+    });
+    return bt;
+  }, [bookings, properties]);
 
   const handleTeachAI = async () => {
     if (!feedbackText.trim()) return;
@@ -528,11 +596,16 @@ function App() {
 
   // ── Client-side fallback scheduler ──────────────────────────────────────
   const buildLocalSchedule = () => {
-    const neededDates = new Set([todayStrISO, tmrwStrISO, activeTab]);
+    // Include today, tomorrow, activeTab, AND all booking dates
+    const bookingDates = bookingTasks.map(t => t.assigned_date).filter(Boolean);
+    const neededDates = new Set([todayStrISO, tmrwStrISO, activeTab, ...bookingDates]);
     const schedules = {};
 
-    const sorted = [...tasks]
-      .map(t => ({ ...t, required_roles: rolesForTaskType(t.task_type) }))
+    // Merge regular tasks + booking-derived tasks
+    const allTasks = [...tasks, ...bookingTasks];
+
+    const sorted = [...allTasks]
+      .map(t => ({ ...t, required_roles: t.required_roles || rolesForTaskType(t.task_type) }))
       .sort((a, b) =>
         a.priority !== b.priority ? a.priority - b.priority : a.time_window_start_mins - b.time_window_start_mins
       );
@@ -667,7 +740,14 @@ function App() {
     );
 
     dynamicTasks.forEach(task => {
-      if (task.target_day) {
+      // Route tasks with assigned_date to their specific date
+      if (task.assigned_date) {
+        if (schedules[task.assigned_date]) {
+          if (!tryAssign(schedules[task.assigned_date], task)) {
+            unassigned.push(task);
+          }
+        }
+      } else if (task.target_day) {
         // Strict day assignment for Meet & Greet auto-tasks
         const targetDateISO = task.target_day === 'today' ? todayStrISO : task.target_day === 'tomorrow' ? tmrwStrISO : null;
         if (targetDateISO && schedules[targetDateISO]) {
@@ -1378,7 +1458,13 @@ function App() {
       }}>
 
       {/* Properties Grid Platform */}
-      {activePlatform === 'properties' && <PropertyGrid />}
+      {activePlatform === 'properties' && (
+        <PropertyGrid
+          bookings={bookings}
+          setBookings={setBookings}
+          properties={properties}
+        />
+      )}
 
       {/* Staff Platform */}
       {activePlatform === 'staff' && (
@@ -2035,6 +2121,33 @@ function App() {
               </>
             )}
           </div>
+
+          {/* ── Booking banners for this date ── */}
+          {(() => {
+            const dayBookings = bookings.filter(b =>
+              b.status !== 'cancelled' && (b.check_in_date === activeTab || b.check_out_date === activeTab)
+            );
+            if (!dayBookings.length) return null;
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '0.75rem' }}>
+                {dayBookings.map(b => {
+                  const prop = properties.find(p => p.id === b.property_id);
+                  const isCheckIn  = b.check_in_date  === activeTab;
+                  const isCheckOut = b.check_out_date === activeTab;
+                  const color = isCheckIn ? '#2dd4af' : '#f43f5e';
+                  return (
+                    <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: `${color}12`, border: `1px solid ${color}35`, borderRadius: 10, padding: '0.5rem 0.85rem' }}>
+                      <span style={{ fontSize: '1rem' }}>{isCheckIn ? '✈️' : '🧳'}</span>
+                      <span style={{ fontWeight: 700, fontSize: '0.82rem', color }}>{isCheckIn ? 'CHECK-IN' : 'CHECK-OUT'}</span>
+                      <span style={{ fontSize: '0.82rem', color: 'var(--text-primary)', fontWeight: 600 }}>{prop?.name || 'Unknown'}</span>
+                      {b.guest_name && <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>· {b.guest_name}</span>}
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginLeft: 'auto' }}>{isCheckIn ? b.check_in_time : b.check_out_time}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
 
           {scheduleViewMode === 'timeline' ? (
             <div className="schedule-timeline">{renderTimeline(activeTab)}</div>
