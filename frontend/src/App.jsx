@@ -142,19 +142,51 @@ function App() {
       'Pay Collect', 'Viewings', 'Drop-off / Pick-up', 'Maintenance', 'Picture / Measurement'
     ];
 
+    // ── Build the complete system context ──────────────────────────────────
+    // Read PropertyGrid custom data from localStorage so ALL columns are included
+    let propertyGridCols = [];
+    let propertyGridRows = [];
     try {
-      // Call our secure Netlify serverless function (works in production)
-      // Falls back gracefully when running locally without the function
+      const rawCols = localStorage.getItem('hhs_prop_grid_cols');
+      const rawRows = localStorage.getItem('hhs_prop_grid_rows');
+      if (rawCols) propertyGridCols = JSON.parse(rawCols);
+      if (rawRows) propertyGridRows = JSON.parse(rawRows);
+    } catch (_) {}
+
+    // Read off-days from localStorage
+    let offDaysRaw = {};
+    try {
+      const rawOff = localStorage.getItem('hhs_off_days');
+      if (rawOff) offDaysRaw = JSON.parse(rawOff);
+    } catch (_) {}
+
+    const systemContext = {
+      staff: staff.map(s => ({
+        id: s.id,
+        name: s.name,
+        roles: s.roles || [],
+        has_car: s.has_car ?? false,
+        ai_notes: s.ai_notes || '',
+        recurring_off_days: s.recurring_off_days || [],
+      })),
+      properties,
+      propertyGridCols,
+      propertyGridRows,
+      tasks,
+      offDays: offDaysRaw,
+      expertRules,
+      taskTypes,
+      hq,
+    };
+    // ──────────────────────────────────────────────────────────────────────
+
+    try {
       const endpoint = '/.netlify/functions/claude-ai';
 
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          feedbackText,
-          staffList: staff.map(s => ({ id: s.id, name: s.name, roles: s.roles })),
-          taskTypes,
-        }),
+        body: JSON.stringify({ feedbackText, systemContext }),
       });
 
       if (!res.ok) {
@@ -164,7 +196,7 @@ function App() {
 
       const data = await res.json();
 
-      // Match staff IDs from names Claude returned (it may only know names, not IDs)
+      // Match staff IDs from names Claude returned
       const resolvedConstraints = (data.constraints || []).map(c => {
         const matchedStaff = staff.find(
           s => s.name.toLowerCase() === (c.staff_name || '').toLowerCase()
@@ -201,6 +233,7 @@ function App() {
       setIsLearning(false);
     }
   };
+
 
   const handleRemoveRule = (ruleId) => {
     setExpertRules(prev => prev.filter(r => r.id !== ruleId));
