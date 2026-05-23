@@ -304,7 +304,7 @@ function App() {
     // ──────────────────────────────────────────────────────────────────────
 
     try {
-      const endpoint = '/.netlify/functions/claude-ai';
+      const endpoint = '/api/claude-ai';
 
       const res = await fetch(endpoint, {
         method: 'POST',

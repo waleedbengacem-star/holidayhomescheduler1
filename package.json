@@ -1,0 +1,15 @@
+{
+  "name": "holiday-home-scheduler",
+  "version": "1.0.0",
+  "description": "Holiday Home Scheduler — AWS App Runner",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
