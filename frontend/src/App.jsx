@@ -304,7 +304,7 @@ function App() {
     // ──────────────────────────────────────────────────────────────────────
 
     try {
-      const endpoint = '/api/claude-ai';
+      const endpoint = (import.meta.env.VITE_API_URL || '') + '/api/claude-ai';
 
       const res = await fetch(endpoint, {
         method: 'POST',
